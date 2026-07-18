@@ -1,0 +1,14 @@
+# Betriebssystem
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude Code lokale Einstellungen (persönlich, nicht fürs Team)
+.claude/settings.local.json
+
+# Logs
+*.log

@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>NutriScan — ehrlich sagen, was drin ist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<!-- ZXing: Barcode-Scanner, der auch auf iPad/Safari läuft (Android Chrome nutzt die native API). -->
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<style>
+/* ============================================================
+   NUTRISCAN — Designsystem  (hell, freundlich, "at a glance")
+   Farben tragen Bedeutung (Ampel), nicht Deko.
+   ============================================================ */
+:root{
+  --bg:#F4F7F2; --bg-2:#EAF0E7; --card:#FFFFFF; --ink:#20302A; --muted:#6E7F77; --line:#E4EBE2;
+  --brand:#22B573; --brand-dark:#159A5F; --sky:#3AA6E0;
+  --s10:#1FB56A; --s8:#5FC44E; --s6:#B7D53C; --s5:#F2C53D; --s4:#F5A63B; --s2:#F27B3E; --s1:#EC5A56;
+  --shadow:0 10px 30px -12px rgba(30,60,45,.28); --shadow-sm:0 4px 14px -6px rgba(30,60,45,.22); --r:26px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:radial-gradient(120% 90% at 50% -10%,#FFFFFF 0%,var(--bg) 55%);min-height:100dvh;color:var(--ink);
+  font-family:'Nunito',system-ui,sans-serif;font-weight:600;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,.fred{font-family:'Fredoka',sans-serif;font-weight:600;letter-spacing:-.01em}
+.app{max-width:560px;margin:0 auto;padding:18px 18px 120px;position:relative}
+
+.top{display:flex;align-items:center;gap:10px;padding:6px 2px 16px}
+.logo{display:flex;align-items:center;gap:10px}
+.logo__mark{width:38px;height:38px;flex:0 0 auto}
+.logo__name{font-family:'Fredoka';font-weight:600;font-size:1.3rem}
+.logo__name span{color:var(--brand)}
+.top__spacer{flex:1}
+.pill-btn{border:1px solid var(--line);background:var(--card);color:var(--ink);font-family:'Nunito';font-weight:700;font-size:.85rem;
+  border-radius:100px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:var(--shadow-sm);transition:transform .08s}
+.pill-btn:active{transform:scale(.96)}
+
+.screen{display:none;animation:pop .4s cubic-bezier(.2,.9,.25,1) both}
+.screen.on{display:block}
+@keyframes pop{from{opacity:0;transform:translateY(14px) scale(.99)}to{opacity:1;transform:none}}
+
+.steps{display:flex;gap:6px;margin:0 2px 20px}
+.steps__dot{height:6px;flex:1;border-radius:100px;background:var(--bg-2);transition:background .3s}
+.steps__dot.done{background:var(--brand)}
+.steps__dot.now{background:linear-gradient(90deg,var(--brand),var(--sky))}
+
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:24px;margin-bottom:16px}
+.eyebrow{font-family:'Fredoka';font-weight:500;color:var(--brand-dark);font-size:.8rem;letter-spacing:.04em;text-transform:uppercase;margin:0 0 4px}
+.h-lead{font-size:1.5rem;margin:0 0 4px;line-height:1.15}
+.sub{color:var(--muted);font-size:.95rem;margin:0 0 18px;font-weight:600}
+
+.hero{text-align:center;padding-top:6px}
+.hero__stage{position:relative;height:190px;margin:6px 0 4px}
+.blob{position:absolute;inset:0;margin:auto;width:150px;height:150px;border-radius:46% 54% 52% 48%/54% 46% 54% 46%;
+  background:linear-gradient(150deg,#DDF4E6,#C9EBF7);filter:blur(2px);animation:morph 9s ease-in-out infinite}
+@keyframes morph{50%{border-radius:54% 46% 46% 54%/46% 54% 46% 54%;transform:rotate(8deg)}}
+.floaty{position:absolute;width:58px;height:58px;animation:float 5s ease-in-out infinite}
+.floaty.f1{top:6px;left:16%;animation-delay:.1s}.floaty.f2{top:26px;right:12%;width:50px;height:50px;animation-delay:.9s}
+.floaty.f3{bottom:6px;left:28%;width:52px;height:52px;animation-delay:1.6s}.floaty.f4{bottom:16px;right:22%;width:46px;height:46px;animation-delay:.5s}
+@keyframes float{50%{transform:translateY(-12px) rotate(-4deg)}}
+.hero__buddy{position:absolute;inset:0;margin:auto;width:120px;height:120px}
+.hero .h-lead{font-size:1.7rem}
+.big-cta{display:inline-flex;align-items:center;justify-content:center;gap:10px;width:100%;
+  background:linear-gradient(135deg,var(--brand),var(--brand-dark));color:#fff;border:none;font-family:'Fredoka';font-weight:600;font-size:1.15rem;
+  padding:17px;border-radius:100px;cursor:pointer;box-shadow:0 12px 24px -8px rgba(21,154,95,.6);transition:transform .1s;margin-top:8px}
+.big-cta:active{transform:scale(.98)}
+.ghost-cta{background:none;border:none;color:var(--muted);font-family:'Nunito';font-weight:700;font-size:.92rem;margin-top:14px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+
+.chips{display:flex;flex-wrap:wrap;gap:9px}
+.chip{border:2px solid var(--line);background:#fff;color:var(--ink);font-family:'Nunito';font-weight:700;font-size:.9rem;
+  padding:10px 15px;border-radius:100px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:transform .08s,border-color .15s,background .15s,color .15s}
+.chip:active{transform:scale(.95)}
+.chip[aria-pressed="true"]{border-color:var(--brand);background:var(--brand);color:#fff}
+.chip[disabled]{opacity:.4;cursor:not-allowed}
+.chip__emoji{font-size:1.05rem}
+.group{margin-bottom:20px}
+.group__head{display:flex;align-items:center;gap:8px;margin:0 0 11px}
+.group__title{font-family:'Fredoka';font-weight:600;font-size:1.05rem}
+.group__tag{font-size:.72rem;color:var(--muted);font-weight:700;background:var(--bg-2);padding:3px 9px;border-radius:100px}
+.counter{display:flex;align-items:center;justify-content:space-between;background:var(--bg-2);border-radius:100px;padding:8px 8px 8px 18px;margin-bottom:14px}
+.counter__txt{font-family:'Fredoka';font-weight:500;font-size:.95rem}
+.counter b{color:var(--brand-dark)}
+.link-row{display:flex;justify-content:center;margin-top:2px}
+.text-link{background:none;border:none;color:var(--brand-dark);font-family:'Nunito';font-weight:700;font-size:.86rem;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:8px}
+.notice{display:flex;gap:10px;align-items:flex-start;background:#FFF7E8;border:1px solid #F6E2B0;border-radius:16px;padding:12px 14px;font-size:.85rem;font-weight:600;color:#7A5A16;margin-top:6px}
+.notice svg{flex:0 0 auto;margin-top:1px}
+
+.scan-stage{position:relative;border-radius:22px;overflow:hidden;background:#0d1512;aspect-ratio:3/4;max-height:56vh;margin:0 auto;box-shadow:var(--shadow)}
+#video{width:100%;height:100%;object-fit:cover;display:block}
+.scan-off{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#cfe;background:linear-gradient(160deg,#14231d,#0d1512);text-align:center;padding:24px}
+.reticle{position:absolute;inset:14% 12%;pointer-events:none}
+.reticle::before,.reticle::after,.reticle i::before,.reticle i::after{content:"";position:absolute;width:34px;height:34px;border:4px solid #fff;border-radius:6px}
+.reticle::before{top:0;left:0;border-right:none;border-bottom:none}.reticle::after{top:0;right:0;border-left:none;border-bottom:none}
+.reticle i::before{bottom:0;left:0;border-right:none;border-top:none}.reticle i::after{bottom:0;right:0;border-left:none;border-top:none}
+.laser{position:absolute;left:12%;right:12%;height:3px;border-radius:3px;background:var(--brand);box-shadow:0 0 16px 3px var(--brand);top:14%;animation:laser 2.2s ease-in-out infinite}
+@keyframes laser{50%{top:82%}}
+.manual{display:flex;gap:8px;margin-top:14px}
+.field{flex:1;border:2px solid var(--line);border-radius:100px;padding:13px 18px;font-family:'Nunito';font-weight:700;font-size:1rem;color:var(--ink)}
+.field:focus{outline:none;border-color:var(--brand)}
+.go{border:none;background:var(--brand);color:#fff;font-family:'Fredoka';font-weight:600;padding:0 22px;border-radius:100px;cursor:pointer;font-size:1rem}
+.demo-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.demo{border:1px dashed var(--line);background:#fff;border-radius:100px;padding:7px 13px;font-size:.82rem;font-weight:700;color:var(--muted);cursor:pointer}
+.demo:active{transform:scale(.95)}
+.status{text-align:center;color:var(--muted);font-size:.9rem;margin-top:12px;min-height:1.3em;font-weight:700}
+.status.err{color:var(--s2)}
+
+.result-hero{text-align:center;position:relative;padding:8px 0 4px}
+.ring-wrap{position:relative;width:230px;height:230px;margin:0 auto 6px}
+.ring-wrap svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:var(--bg-2);stroke-width:16}
+.ring-fg{fill:none;stroke-width:16;stroke-linecap:round;transition:stroke-dashoffset 1.1s cubic-bezier(.2,.85,.2,1),stroke .5s}
+.mascot{position:absolute;inset:0;margin:auto;width:150px;height:150px;animation:mascotIn .6s .25s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes mascotIn{from{transform:scale(.3) translateY(10px);opacity:0}to{transform:none;opacity:1}}
+.mascot.bounce{animation:mascotIn .6s .25s cubic-bezier(.2,1.4,.4,1) both, bob 2.4s 1s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-7px)}}
+.score-badge{position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);background:#fff;border-radius:100px;padding:4px 16px;box-shadow:var(--shadow-sm);font-family:'Fredoka';font-weight:600;font-size:1.6rem;display:flex;align-items:baseline;gap:2px}
+.score-badge small{font-size:.85rem;color:var(--muted);font-weight:500}
+.verdict{font-family:'Fredoka';font-weight:600;font-size:1.35rem;margin:14px 0 2px;line-height:1.2}
+.verdict-sub{color:var(--muted);font-size:.92rem;margin:0 0 4px;font-weight:700}
+.goal-tags{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0 0}
+.goal-tags span{background:var(--bg-2);border-radius:100px;padding:4px 12px;font-size:.78rem;font-weight:700;color:var(--brand-dark)}
+.prod-name{font-family:'Fredoka';font-weight:600;font-size:1.15rem;margin:2px 0 0}
+.prod-brand{color:var(--muted);font-size:.85rem;font-weight:700}
+.sparkle{position:absolute;font-size:1.4rem;animation:spark 1.2s ease-out forwards;pointer-events:none}
+@keyframes spark{0%{transform:scale(0) rotate(0);opacity:0}30%{opacity:1}100%{transform:scale(1.3) translate(var(--dx),var(--dy)) rotate(40deg);opacity:0}}
+
+.reasons{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.reason{display:flex;gap:12px;align-items:center;background:var(--bg);border-radius:16px;padding:12px 14px}
+.reason__ico{width:30px;height:30px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-weight:800;color:#fff;font-size:1rem}
+.reason--good .reason__ico{background:var(--s8)}.reason--bad .reason__ico{background:var(--s2)}.reason--neutral .reason__ico{background:var(--muted)}
+.reason__txt{font-size:.9rem;font-weight:700}
+.reason__txt small{display:block;color:var(--muted);font-weight:600;font-size:.78rem}
+.know{background:#EEF6FF;border:1px solid #D3E7FA}
+.know .eyebrow{color:var(--sky)}
+.know ul{margin:0;padding-left:18px;font-size:.88rem;font-weight:700;color:#2C4A63}
+.know li{margin:5px 0}
+.collapse{border-top:1px solid var(--line);margin-top:4px}
+.collapse summary{cursor:pointer;list-style:none;padding:16px 2px 4px;font-family:'Fredoka';font-weight:500;color:var(--muted)}
+.collapse summary::-webkit-details-marker{display:none}
+.nutri-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;padding:10px 0 4px}
+.nutri-item{display:flex;justify-content:space-between;font-size:.86rem;font-weight:700;border-bottom:1px dashed var(--line);padding-bottom:6px}
+.nutri-item span:first-child{color:var(--muted)}
+.result-actions{display:flex;gap:10px;margin-top:6px}
+.result-actions button{flex:1;border-radius:100px;padding:14px;font-family:'Fredoka';font-weight:600;font-size:1rem;cursor:pointer;border:2px solid var(--brand)}
+.result-actions .primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.result-actions .secondary{background:#fff;color:var(--brand-dark)}
+
+.hist-head{display:flex;align-items:center;justify-content:space-between}
+.hist-item{display:flex;align-items:center;gap:12px;background:#fff;border-radius:18px;padding:12px 14px;box-shadow:var(--shadow-sm);margin-bottom:10px;cursor:pointer;transition:transform .08s}
+.hist-item:active{transform:scale(.98)}
+.hist-score{width:44px;height:44px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;color:#fff;font-family:'Fredoka';font-weight:600;font-size:1.15rem}
+.hist-name{font-weight:800;font-size:.95rem}
+.hist-name small{display:block;color:var(--muted);font-weight:700;font-size:.78rem}
+.empty{text-align:center;color:var(--muted);padding:40px 10px;font-weight:700}
+
+.nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:8px 0 calc(8px + env(safe-area-inset-bottom));z-index:20}
+.nav button{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font-family:'Nunito';font-weight:800;font-size:.7rem;cursor:pointer;padding:4px 18px;border-radius:14px}
+.nav button.on{color:var(--brand-dark)}
+.nav svg{width:24px;height:24px}
+.disclaimer{text-align:center;color:var(--muted);font-size:.72rem;font-weight:600;margin:8px 0 0;line-height:1.5}
+.disclaimer a{color:var(--brand-dark)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="logo">
+      <svg class="logo__mark" viewBox="0 0 44 44" aria-hidden="true">
+        <rect x="2" y="2" width="40" height="40" rx="13" fill="#22B573"/>
+        <rect x="11" y="13" width="3" height="18" rx="1.5" fill="#fff"/><rect x="17" y="13" width="2" height="18" rx="1" fill="#fff"/>
+        <rect x="22" y="13" width="3" height="18" rx="1.5" fill="#fff"/><rect x="28" y="13" width="2" height="18" rx="1" fill="#fff"/>
+        <rect x="33" y="13" width="2.5" height="18" rx="1.25" fill="#fff"/>
+      </svg><span class="logo__name">Nutri<span>Scan</span></span>
+    </div>
+    <div class="top__spacer"></div>
+    <button class="pill-btn" id="editGoals" style="display:none">🎯 Ziele</button>
+  </div>
+
+  <!-- HERO -->
+  <section class="screen on" data-screen="hero">
+    <div class="hero">
+      <div class="hero__stage">
+        <div class="blob"></div>
+        <div class="floaty f1" id="fApple"></div><div class="floaty f2" id="fAvo"></div>
+        <div class="floaty f3" id="fCarrot"></div><div class="floaty f4" id="fDrop"></div>
+        <div class="hero__buddy" id="heroBuddy"></div>
+      </div>
+      <p class="eyebrow">Dein ehrlicher Einkaufs-Buddy</p>
+      <h1 class="h-lead">Was steckt <em>wirklich</em><br>in deinem Produkt?</h1>
+      <p class="sub">Scanne den Strichcode – NutriScan bewertet ehrlich von 1&nbsp;bis&nbsp;10, passend zu deinem Ziel. Kein Marketing, nur Fakten.</p>
+      <button class="big-cta" id="startBtn">Los geht's <span aria-hidden="true">→</span></button>
+      <button class="ghost-cta" id="skipToScan">Direkt scannen, ohne Ziele</button>
+      <p class="disclaimer">Orientierung nach unseren Regeln – keine medizinische Beratung.<br>Daten: <a href="https://openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a></p>
+    </div>
+  </section>
+
+  <!-- ALLERGENE -->
+  <section class="screen" data-screen="allergens">
+    <div class="steps"><i class="steps__dot now"></i><i class="steps__dot"></i><i class="steps__dot"></i></div>
+    <div class="card">
+      <p class="eyebrow">Schritt 1 · Sicherheit zuerst</p>
+      <h2 class="h-lead">Was sollen wir für dich ausschließen?</h2>
+      <p class="sub">Tippe an, was du nicht verträgst. Produkte damit markieren wir rot – egal wie gut sie sonst wären.</p>
+      <div class="chips" id="allergenChips"></div>
+      <div class="notice">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16h.01" stroke="#B8860B" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="12" r="9.5" stroke="#B8860B" stroke-width="1.8"/></svg>
+        <span>Bei echten Allergien immer das Etikett prüfen. Wir sagen „laut Daten frei" – nie „garantiert frei".</span>
+      </div>
+    </div>
+    <button class="big-cta" id="toGoals">Weiter <span aria-hidden="true">→</span></button>
+  </section>
+
+  <!-- ZIELE -->
+  <section class="screen" data-screen="goals">
+    <div class="steps"><i class="steps__dot done"></i><i class="steps__dot now"></i><i class="steps__dot"></i></div>
+    <div class="counter">
+      <span class="counter__txt">Wähle bis zu <b>3&nbsp;Ziele</b></span>
+      <span class="pill-btn" id="goalCount" style="pointer-events:none">0 / 3</span>
+    </div>
+    <div class="card" id="goalGroups"></div>
+    <div class="link-row"><button class="text-link" id="editAllergens">🛡️ Allergene ändern</button></div>
+    <button class="big-cta" id="toScan" style="margin-top:10px">Zum Scanner <span aria-hidden="true">→</span></button>
+  </section>
+
+  <!-- SCAN -->
+  <section class="screen" data-screen="scan">
+    <div class="card">
+      <p class="eyebrow">Scannen</p>
+      <h2 class="h-lead">Strichcode vor die Kamera</h2>
+      <div class="scan-stage">
+        <video id="video" playsinline muted></video>
+        <div class="scan-off" id="scanOff">
+          <div style="font-size:2.4rem">📷</div><div style="font-weight:800">Kamera starten</div>
+          <button class="go" id="camStart" style="padding:12px 22px">Kamera an</button>
+          <div style="font-size:.8rem;opacity:.8;max-width:220px">Auf dem Laptop einfach unten den Barcode eintippen.</div>
+        </div>
+        <div class="reticle" id="reticle" style="display:none"><i></i></div>
+        <div class="laser" id="laser" style="display:none"></div>
+      </div>
+      <div class="manual">
+        <input class="field" id="barcode" inputmode="numeric" placeholder="Barcode eintippen…">
+        <button class="go" id="lookupBtn">Los</button>
+      </div>
+      <div class="demo-row">
+        <button class="demo" data-demo="quark">🥛 Magerquark</button><button class="demo" data-demo="cola">🥤 Cola</button>
+        <button class="demo" data-demo="colazero">🥤 Cola Zero</button><button class="demo" data-demo="riegel">🍫 Proteinriegel</button>
+        <button class="demo" data-demo="avocado">🥑 Avocado</button><button class="demo" data-demo="gummi">🐻 Gummibärchen</button>
+        <button class="demo" data-demo="hafer">🌾 Haferflocken</button><button class="demo" data-demo="bier">🍺 Bier</button>
+        <button class="demo" data-demo="oel">🫒 Olivenöl</button>
+      </div>
+      <p class="status" id="status"></p>
+    </div>
+  </section>
+
+  <!-- ERGEBNIS -->
+  <section class="screen" data-screen="result">
+    <div class="card">
+      <div class="result-hero">
+        <div class="ring-wrap">
+          <svg width="230" height="230" viewBox="0 0 230 230">
+            <circle class="ring-bg" cx="115" cy="115" r="100"></circle>
+            <circle class="ring-fg" id="ringFg" cx="115" cy="115" r="100"></circle>
+          </svg>
+          <div class="mascot" id="resultMascot"></div>
+          <div class="score-badge"><span id="scoreNum">–</span><small>/10</small></div>
+        </div>
+        <p class="verdict" id="verdict">—</p>
+        <p class="verdict-sub" id="verdictSub"></p>
+        <p class="prod-name" id="prodName">—</p>
+        <p class="prod-brand" id="prodBrand"></p>
+        <div class="goal-tags" id="goalTags"></div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="eyebrow">Warum diese Bewertung?</p>
+      <ul class="reasons" id="reasons"></ul>
+      <details class="collapse" id="nutriBox"><summary>Nährwerte pro 100 g anzeigen ▾</summary><div class="nutri-grid" id="nutriGrid"></div></details>
+    </div>
+    <div class="card know" id="knowCard" style="display:none">
+      <p class="eyebrow">💡 Gut zu wissen</p><ul id="knowList"></ul>
+    </div>
+    <div class="result-actions">
+      <button class="secondary" id="againBtn">Nächstes Produkt</button>
+      <button class="primary" id="changeGoalBtn">Ziele ändern</button>
+    </div>
+  </section>
+
+  <!-- VERLAUF -->
+  <section class="screen" data-screen="history">
+    <div class="card">
+      <div class="hist-head"><h2 class="h-lead" style="margin:0">Dein Verlauf</h2><button class="text-link" id="clearHist">Leeren</button></div>
+      <p class="sub" style="margin-top:4px">Bleibt nur auf diesem Gerät.</p>
+      <div id="histList"></div>
+    </div>
+  </section>
+</div>
+
+<nav class="nav" id="nav" style="display:none">
+  <button data-nav="scan" class="on"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="3" stroke="currentColor" stroke-width="2"/><path d="M7 9v6M10 9v6M13 9v6M17 9v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Scannen</button>
+  <button data-nav="goals"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>Ziele</button>
+  <button data-nav="history"><svg viewBox="0 0 24 24" fill="none"><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="2"/></svg>Verlauf</button>
+</nav>
+
+<script>
+/* ==========================================================================
+   NUTRISCAN — Logik
+   0 Figuren · 1 Daten/Ziele · 2 Scoring · 3 Datenbank · 4 Anzeige · 5 Kamera · 6 Verlauf · 7 Navigation
+   ========================================================================== */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); // gegen HTML-Injection
+const round1=v=>Math.round(v*10)/10;
+
+/* ---------- 0 · FIGUREN -------------------------------------------------- */
+function mascot(mood,color){
+  const faces={
+    love:`<circle cx="42" cy="52" r="5" fill="#20302A"/><circle cx="78" cy="52" r="5" fill="#20302A"/><path d="M40 70 q20 20 40 0" stroke="#20302A" stroke-width="5" fill="none" stroke-linecap="round"/><text x="24" y="40" font-size="16">✨</text><text x="84" y="40" font-size="16">✨</text>`,
+    happy:`<circle cx="44" cy="54" r="5" fill="#20302A"/><circle cx="76" cy="54" r="5" fill="#20302A"/><path d="M44 68 q16 14 32 0" stroke="#20302A" stroke-width="5" fill="none" stroke-linecap="round"/>`,
+    neutral:`<circle cx="44" cy="54" r="5" fill="#20302A"/><circle cx="76" cy="54" r="5" fill="#20302A"/><path d="M46 72 h28" stroke="#20302A" stroke-width="5" fill="none" stroke-linecap="round"/>`,
+    worried:`<circle cx="44" cy="56" r="5" fill="#20302A"/><circle cx="76" cy="56" r="5" fill="#20302A"/><path d="M46 74 q14 -10 28 0" stroke="#20302A" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M36 46 l12 4M84 46 l-12 4" stroke="#20302A" stroke-width="4" stroke-linecap="round"/>`,
+    sad:`<circle cx="44" cy="56" r="5" fill="#20302A"/><circle cx="76" cy="56" r="5" fill="#20302A"/><path d="M44 76 q16 -14 32 0" stroke="#20302A" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M38 62 q4 6 0 12" stroke="#8FC7E8" stroke-width="4" fill="none" stroke-linecap="round"/>`
+  };
+  return `<svg viewBox="0 0 120 120" width="100%" height="100%">
+    <ellipse cx="60" cy="112" rx="30" ry="6" fill="rgba(0,0,0,.08)"/>
+    <path d="M60 10 C88 10 104 32 104 62 C104 92 86 112 60 112 C34 112 16 92 16 62 C16 32 32 10 60 10Z" fill="${color}"/>
+    <path d="M60 20 C82 20 94 38 94 62 C94 86 80 102 60 102 C40 102 26 86 26 62 C26 38 38 20 60 20Z" fill="#ffffff" opacity=".92"/>
+    ${faces[mood]}</svg>`;
+}
+function foodBuddy(kind){
+  const e=`<circle cx="34" cy="42" r="2.6" fill="#20302A"/><circle cx="46" cy="42" r="2.6" fill="#20302A"/><path d="M34 50 q6 6 12 0" stroke="#20302A" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+  const s={
+    apple:`<path d="M40 20 q-4 -8 4 -8" stroke="#7A5230" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M44 16 q8 -6 12 2 q-8 2 -12 -2Z" fill="#5FC44E"/><path d="M40 22 C58 18 66 36 60 54 C56 66 44 70 40 70 C36 70 24 66 20 54 C14 36 22 18 40 22Z" fill="#EC5A56"/>${e}`,
+    avocado:`<path d="M40 12 C58 12 64 34 58 54 C54 68 46 74 40 74 C34 74 26 68 22 54 C16 34 22 12 40 12Z" fill="#6BA84F"/><path d="M40 24 C52 24 56 38 52 52 C49 62 44 66 40 66 C36 66 31 62 28 52 C24 38 28 24 40 24Z" fill="#E4E9A9"/><circle cx="40" cy="48" r="9" fill="#8A5A2B"/>${e}`,
+    carrot:`<path d="M40 18 L58 66 Q40 76 22 66 Z" fill="#F5943B"/><path d="M40 10 q-10 -4 -6 8 q10 -2 6 -8Z M40 10 q10 -4 6 8 q-10 -2 -6 -8Z M40 8 q0 -8 0 8" fill="#5FC44E"/>${e}`,
+    drop:`<path d="M40 12 C54 34 62 44 62 56 A22 22 0 0 1 18 56 C18 44 26 34 40 12Z" fill="#3AA6E0"/><circle cx="34" cy="48" r="2.6" fill="#fff"/><circle cx="46" cy="48" r="2.6" fill="#fff"/><path d="M34 56 q6 6 12 0" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round"/>`
+  };
+  return `<svg viewBox="0 0 80 80" width="100%" height="100%">${s[kind]}</svg>`;
+}
+$('#fApple').innerHTML=foodBuddy('apple');$('#fAvo').innerHTML=foodBuddy('avocado');
+$('#fCarrot').innerHTML=foodBuddy('carrot');$('#fDrop').innerHTML=foodBuddy('drop');
+$('#heroBuddy').innerHTML=mascot('happy','#22B573');
+
+/* ---------- 1 · DATEN ---------------------------------------------------- */
+const ALLERGENS=[
+  {id:'en:gluten',t:'Gluten',e:'🌾'},{id:'en:milk',t:'Milch',e:'🥛'},{id:'en:eggs',t:'Ei',e:'🥚'},
+  {id:'en:nuts',t:'Nüsse',e:'🌰'},{id:'en:peanuts',t:'Erdnuss',e:'🥜'},{id:'en:soybeans',t:'Soja',e:'🫘'},
+  {id:'en:fish',t:'Fisch',e:'🐟'},{id:'en:sesame-seeds',t:'Sesam',e:'⚪'}
+];
+const ALLERGEN_LABEL=Object.fromEntries(ALLERGENS.map(a=>[a.id,a.t]));
+const GROUPS=[
+  {name:'Fitness-Ziele',tag:'Score',goals:[{id:'muskel',e:'💪',t:'Muskelaufbau'},{id:'abnehmen',e:'🔥',t:'Abnehmen'},{id:'energie',e:'⚡',t:'Energie'},{id:'ausgewogen',e:'⚖️',t:'Ausgewogen'}]},
+  {name:'Reduzieren',tag:'Score',goals:[{id:'zucker',e:'🚫',t:'Wenig Zucker'},{id:'gesfett',e:'🧈',t:'Wenig ges. Fett'},{id:'salz',e:'🧂',t:'Wenig Salz'},{id:'lowcarb',e:'🥩',t:'Low Carb'}]},
+  {name:'Primal',tag:'Zutatenqualität',goals:[{id:'primal',e:'🌿',t:'Echt & unverarbeitet'}]}
+];
+const GOAL_LABEL=Object.fromEntries(GROUPS.flatMap(g=>g.goals).map(x=>[x.id,x.t]));
+let state={allergens:new Set(),goals:[]};
+
+/* ---------- 2 · SCORING -------------------------------------------------- */
+const num=v=>(typeof v==='number'&&isFinite(v))?v:null;
+const has=v=>v!==null&&v!==undefined;
+const clamp=n=>Math.max(1,Math.min(10,n));
+
+const BENIGN=['e300','e306','e330','e440','e322','e410','e412','e415','e414','e401','e290','e296','e270'];
+const CONCERN=['e102','e104','e110','e120','e122','e124','e129','e131','e132','e133','e150d','e151','e171','e320','e321','e250','e251','e621','e951','e950','e955','e952','e954'];
+const SWEETENERS=['e950','e951','e952','e954','e955','e960','e961','e962'];
+const OIL_GOOD=['leinöl','walnussöl','rapsöl','olivenöl','hanföl'];
+const OIL_BAD=['sonnenblumenöl','distelöl','sojaöl','maiskeimöl'];
+const SUGAR_WORDS=['zucker','glukosesirup','glucose-fructose','fruktose','dextrose','maltodextrin','sirup','saccharose','maltose'];
+const SMALL_QTY=['gewürz','öl ','öle','essig','würz','sauce','soße','dressing','spice','condiment','oil','vinegar','seasoning','aufstrich'];
+
+// Verneinungssicheres Suchen: "ohne X", "Xfrei", "frei von X", "kein X" -> NICHT als Treffer werten
+function ingHas(ing,word){
+  if(!ing.includes(word)) return false;
+  const neg=[`ohne ${word}`,`${word}frei`,`${word} frei`,`frei von ${word}`,`kein ${word}`,`keine ${word}`,`nicht ${word}`];
+  return !neg.some(p=>ing.includes(p));
+}
+const isSmallQty=p=>SMALL_QTY.some(k=>(p.category+' '+p.name.toLowerCase()).includes(k));
+
+// Grund-Qualität (= Primal-Score). NOVA-Zeile ist als {nova:true} markiert (bedingt anzeigbar).
+function quality(p){
+  const r=[]; let s;
+  if(has(p.nova)){ s={1:9.5,2:8,3:6,4:2.5}[p.nova];
+    if(p.nova>=4) r.push({t:'bad',x:'Stark verarbeitet (NOVA 4)',nova:true});
+    else if(p.nova<=2) r.push({t:'good',x:'Kaum verarbeitet (NOVA '+p.nova+')',nova:true});
+    else r.push({t:'neutral',x:'Klassisch verarbeitet (NOVA 3)',nova:true});
+  } else { s=p.ingCount==null?5:p.ingCount<=3?8.5:p.ingCount<=6?6.5:p.ingCount<=12?4.5:3;
+    r.push({t:'neutral',x:'Verarbeitungsgrad geschätzt (NOVA fehlt)',nova:true}); }
+  const concern=p.additivesList.filter(a=>CONCERN.includes(a)).length;
+  const other=p.additivesList.filter(a=>!CONCERN.includes(a)&&!BENIGN.includes(a)).length;
+  if(concern){ s-=concern*0.9; r.push({t:'bad',x:`${concern} bedenkliche(r) Zusatzstoff(e)`}); }
+  if(other) s-=other*0.3;
+  if(ingHas(p.ing,'gehärtet')||ingHas(p.ing,'hydrogenat')){ s-=1.5; r.push({t:'bad',x:'Gehärtete Fette'}); }
+  if(ingHas(p.ing,'palmöl')||ingHas(p.ing,'palmfett')){ s-=1; r.push({t:'bad',x:'Palmöl'}); }
+  if(OIL_GOOD.some(o=>ingHas(p.ing,o))){ s+=0.5; r.push({t:'good',x:'Hochwertiges Öl (Raps/Oliven/Lein)'}); }
+  if(OIL_BAD.some(o=>ingHas(p.ing,o))){ s-=0.5; r.push({t:'bad',x:'Omega-6-lastiges Öl'}); }
+  if(ingHas(p.ing,'rohmilch')||p.labels.includes('raw')) s+=0.5;
+  if(p.labels.includes('organic')||ingHas(p.ing,'bio')) s+=0.4;
+  return {score:clamp(s),reasons:r};
+}
+
+function fit(goal,p){
+  const g=p.sugar,pr=p.protein,sf=p.satfat,sa=p.salt,cb=p.carbs,kc=p.kcal,fb=p.fiber,small=isSmallQty(p);
+  const T=(val,table,def=1)=>{ if(!has(val))return null; for(const[l,v]of table)if(val<=l)return v; return def; };
+  const Tge=(val,table,def=1)=>{ if(!has(val))return null; for(const[l,v]of table)if(val>=l)return v; return def; };
+  const damp=v=>(v!=null&&small)?Math.max(v,4):v; // Kleinmengen (Öl/Gewürz/Sauce) milder bewerten
+  switch(goal){
+    case 'zucker': return damp(T(g,[[.5,10],[1.5,9],[3,8],[5,7],[7.5,6],[10,5],[15,4],[22.5,3],[30,2]]));
+    case 'gesfett':return damp(T(sf,[[.5,10],[1,9],[1.5,8],[2.5,7],[4,6],[6,4.5],[8,3],[12,2]]));
+    case 'salz':   return damp(T(sa,[[.1,10],[.3,9],[.6,8],[.9,6.5],[1.2,5],[1.6,3.5],[2.2,2]]));
+    case 'lowcarb':return T(cb,[[3,10],[6,9],[10,7.5],[15,6],[22,4.5],[32,3],[45,2]]);
+    case 'muskel':{ let s=Tge(pr,[[25,10],[20,9],[15,8],[12,7],[9,6],[6,4.5],[3,3]],1.5); if(s==null)return null;
+      if(has(kc)&&kc>0&&pr/kc*100>=10)s=Math.min(10,s+0.5); if(has(g)&&g>25)s-=1; return clamp(s); }
+    case 'abnehmen':{ let s=5; if(has(kc)){ s+=kc<=40?3:kc<=80?2:kc<=150?1:kc<=250?0:kc<=350?-1:-2; } else return null;
+      if(has(pr)&&pr>=10)s+=1.5; else if(has(pr)&&pr>=5)s+=.5;
+      if(has(fb)&&fb>=6)s+=1; else if(has(fb)&&fb>=3)s+=.5;
+      if(has(g)){ s+=g>=22.5?-2:g>=10?-1:g>=5?-.5:0; } if(has(sf)&&sf>=5)s-=1; return clamp(s); }
+    case 'energie':{ if(!has(cb))return null; let s=5; s+=cb>=25&&cb<=65?2:cb>=15?1:0;
+      if(has(fb)&&fb>=5)s+=1.5; else if(has(fb)&&fb>=3)s+=.5; if(has(g)){ s+=g>=25?-2:g>=12?-1:0; } return clamp(s); }
+    case 'ausgewogen':{ const q=quality(p).score; let s=q*0.6+4*0.4;
+      if(has(g)&&g>22.5)s-=1; if(has(sf)&&sf>6)s-=1; if(has(sa)&&sa>1.5)s-=.5; if(has(fb)&&fb>=5)s+=.5; return clamp(s); }
+    case 'primal': return quality(p).score;
+  }
+  return null;
+}
+
+function evaluate(p){
+  const q=quality(p);
+  let cap=10; const flags=[];
+  if(has(p.alcohol)&&p.alcohol>1.2){ cap=1; flags.push('alk'); }
+  if(ingHas(p.ing,'gehärtet')||ingHas(p.ing,'hydrogenat')) cap=Math.min(cap,3);
+
+  const chosen=state.goals.length?state.goals:['primal'];
+  const fits=chosen.map(g=>({g,v:fit(g,p)}));
+  const known=fits.filter(f=>f.v!=null);
+  const missing=fits.filter(f=>f.v==null).map(f=>f.g);
+  let goalScore=null;
+  if(known.length){ const vals=known.map(f=>f.v); goalScore=0.7*Math.min(...vals)+0.3*(vals.reduce((a,b)=>a+b,0)/vals.length); }
+
+  // Allergene
+  const allergenHits=[...state.allergens].filter(a=>p.allergens.includes(a)||p.traces.includes(a));
+  const allergenUnknown=state.allergens.size>0 && p.allergens.length===0;
+
+  const qualityCapped=q.score<=3;               // schlecht gemacht -> Deckel greift
+  const showProcessing=chosen.includes('primal')||qualityCapped; // NOVA-Zeile nur dann zeigen
+
+  const reasons=[];
+  let final,verdict,sub='';
+
+  if(goalScore!=null){
+    // Qualitäts-Begründungen (NOVA-Zeile bedingt)
+    q.reasons.forEach(r=>{ if(r.nova && !showProcessing) return; reasons.push(r); });
+    known.forEach(f=>{ const t=f.v>=7?'good':f.v>=4?'neutral':'bad';
+      reasons.push({t,x:`${GOAL_LABEL[f.g]}: ${f.v>=7?'passt gut':f.v>=4?'okay':'passt schlecht'}`,sub:`Ziel-Fit ${f.v}/10`}); });
+    if(missing.length) reasons.push({t:'neutral',x:`Keine Daten für: ${missing.map(g=>GOAL_LABEL[g]).join(', ')}`});
+  }
+
+  if(allergenHits.length){
+    final=1; verdict='Nicht für dich'; sub='Enthält laut Daten: '+allergenHits.map(a=>ALLERGEN_LABEL[a]||a.replace('en:','')).join(', ')+'. Etikett prüfen.';
+    reasons.unshift({t:'bad',x:'Enthält dein Allergen – rot markiert',sub:'Score auf 1 gedeckelt'});
+  } else if(goalScore==null){
+    final=null; verdict='Zu wenig Daten'; sub='Für dein Ziel fehlen wichtige Nährwerte. Etikett prüfen.';
+  } else {
+    let blended=0.7*goalScore+0.3*q.score;
+    if(q.score>=6) blended=Math.max(blended,5);      // gesund -> Boden bei 5
+    if(q.score<=3) blended=Math.min(blended,6);       // schlecht gemacht -> Deckel bei 6
+    blended=Math.min(blended,cap);                    // rote Flaggen deckeln hart
+    final=Math.round(clamp(blended));
+    const goalTxt=chosen.map(g=>GOAL_LABEL[g]).join(' + ');
+    if(flags.includes('alk')){ verdict='Enthält Alkohol'; sub='Für keine Ernährung sinnvoll.'; reasons.unshift({t:'bad',x:`Alkohol ${p.alcohol}% – Bewertung gedeckelt`}); }
+    else if(goalScore<5 && q.score>=6){ verdict='Gesund, aber nicht optimal'; sub='Passt nicht ideal zu „'+goalTxt+'" – trotzdem gut verzehrbar.'; }
+    else if(goalScore>=6 && q.score<=3){ verdict='Hilft dem Ziel – aber verarbeitet'; sub='Erfüllt „'+goalTxt+'", ist aber stark verarbeitet.'; }
+    else if(final>=8) verdict='Top für dich!';
+    else if(final>=6) verdict='Solide Wahl';
+    else if(final>=4) verdict='Nur in Maßen';
+    else verdict='Besser meiden';
+  }
+
+  // "Gut zu wissen"
+  const know=[];
+  if(allergenHits.length) know.push('⚠️ Enthält laut Daten: '+allergenHits.map(a=>ALLERGEN_LABEL[a]||a.replace('en:','')).join(', ')+'.');
+  else if(allergenUnknown) know.push('Keine Allergen-Angaben in den Daten – Etikett prüfen.');
+  if(ingHas(p.ing,'rohmilch')) know.push('Enthält Rohmilch – für Schwangere, Kleinkinder & Immungeschwächte riskant (Listerien).');
+  if(has(p.caffeine)&&p.caffeine>0) know.push('Enthält Koffein.');
+  if(ingHas(p.ing,'süßstoff')||p.additivesList.some(a=>SWEETENERS.includes(a))) know.push('Enthält Süßstoff – bei „Wenig Zucker" ok, bei „Primal" bewusst abgewertet.');
+  if(isSmallQty(p)) know.push('Wird meist in kleinen Mengen verzehrt – pro 100 g wirkt Salz/Zucker/Fett strenger als in Wirklichkeit.');
+  if(chosen.includes('muskel')&&chosen.includes('abnehmen')) know.push('Muskelaufbau + Abnehmen ziehen bei den Kalorien in verschiedene Richtungen – die Bewertung ist ein Kompromiss.');
+
+  return {final,verdict,sub,reasons,know};
+}
+
+/* ---------- 3 · OPEN FOOD FACTS ----------------------------------------- */
+function normalize(off){
+  const n=off.nutriments||{};
+  const ing=(off.ingredients_text_de||off.ingredients_text||'').toLowerCase();
+  const ingCount=Array.isArray(off.ingredients)?off.ingredients.length:(ing?ing.split(',').length:null);
+  return {
+    name:off.product_name_de||off.product_name||off.generic_name||'Unbekanntes Produkt',
+    brand:(off.brands||'').split(',')[0]||'',
+    sugar:num(n['sugars_100g']),protein:num(n['proteins_100g']),fat:num(n['fat_100g']),
+    satfat:num(n['saturated-fat_100g']),salt:num(n['salt_100g']),kcal:num(n['energy-kcal_100g']),
+    fiber:num(n['fiber_100g']),carbs:num(n['carbohydrates_100g']),
+    alcohol:num(n['alcohol_100g'])??num(n['alcohol']),caffeine:num(n['caffeine_100g']),
+    nova:num(off.nova_group),
+    additivesList:(off.additives_tags||[]).map(t=>t.replace('en:','').toLowerCase()),
+    allergens:(off.allergens_tags||[]),traces:(off.traces_tags||[]),
+    labels:(off.labels_tags||[]).join(' '),category:(off.categories_tags||[]).join(' '),ing,ingCount
+  };
+}
+function validEAN(code){
+  if(!/^\d{8}$|^\d{12,13}$/.test(code)) return true;
+  if(code.length!==13) return true;
+  const d=code.split('').map(Number);
+  const sum=d.slice(0,12).reduce((a,x,i)=>a+x*(i%2?3:1),0);
+  return (10-(sum%10))%10===d[12];
+}
+async function lookup(code){
+  code=String(code).trim();
+  if(code.startsWith('demo-')){ const p=DEMO[code.slice(5)]; if(p){ finishLookup(p,code); return; } } // Beispiele aus dem Verlauf
+  if(code[0]==='2'){ setStatus('Sieht nach händlerinternem Code aus (Waage/Theke) – nicht in der Datenbank.',true); return; }
+  if(!validEAN(code)){ setStatus('Barcode unvollständig gelesen – bitte nochmal scannen.',true); return; }
+  const cached=cacheGet(code); if(cached){ finishLookup(cached,code); return; }
+  setStatus('Suche Produkt …');
+  try{
+    const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),8000);
+    const res=await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`,{signal:ctrl.signal});
+    clearTimeout(timer);
+    const data=await res.json();
+    if(data.status!==1){ setStatus('Produkt nicht gefunden. Verpacktes Produkt? Sonst Etikett prüfen.',true); return; }
+    const p=normalize(data.product); cacheSet(code,p); finishLookup(p,code);
+  }catch(e){
+    setStatus(e.name==='AbortError'?'Keine Antwort – in dieser Vorschau ist Internet blockiert. Nutze die Beispiele, oder hoste die App.':'Keine Verbindung zur Datenbank. Probier ein Beispiel unten.',true);
+  }
+}
+function finishLookup(p,code){ setStatus(''); const ev=evaluate(p); showResult(p,ev); addHistory(p,ev,code); }
+
+/* ---------- 4 · ANZEIGE -------------------------------------------------- */
+const CIRC=2*Math.PI*100;
+const scoreColor=s=>{const c=getComputedStyle(document.documentElement);
+  const k=s>=9?'--s10':s>=8?'--s8':s>=6?'--s6':s>=5?'--s5':s>=4?'--s4':s>=2?'--s2':'--s1'; return c.getPropertyValue(k).trim();};
+const scoreMood=s=>s>=9?'love':s>=6?'happy':s>=4?'neutral':s>=2?'worried':'sad';
+let countTimer=null;
+function countUp(el,to){ clearInterval(countTimer); if(to==null){el.textContent='?';return;} let cur=0; el.textContent='0';
+  countTimer=setInterval(()=>{ cur++; el.textContent=cur; if(cur>=to)clearInterval(countTimer); },70); }
+
+function showResult(p,ev){
+  $('#prodName').textContent=p.name; $('#prodBrand').textContent=p.brand;
+  $('#goalTags').innerHTML=(state.goals.length?state.goals:['primal']).map(g=>`<span>${esc(GOAL_LABEL[g])}</span>`).join('');
+  const s=ev.final, hasScore=s!=null;
+  const col=hasScore?scoreColor(s):'#9AA9A2', mood=hasScore?scoreMood(s):'neutral';
+  $('#resultMascot').innerHTML=mascot(mood,col);
+  $('#resultMascot').className='mascot'+(hasScore&&s>=6?' bounce':'');
+  countUp($('#scoreNum'),hasScore?s:null);
+  $('#verdict').textContent=ev.verdict; $('#verdict').style.color=col; $('#verdictSub').textContent=ev.sub;
+  const ring=$('#ringFg'); ring.style.stroke=col; ring.setAttribute('stroke-dasharray',CIRC); ring.setAttribute('stroke-dashoffset',CIRC);
+  requestAnimationFrame(()=>ring.setAttribute('stroke-dashoffset',CIRC*(1-(hasScore?s:0)/10)));
+  $('#reasons').innerHTML=ev.reasons.map(r=>`<li class="reason reason--${r.t}"><div class="reason__ico">${r.t==='good'?'+':r.t==='bad'?'–':'·'}</div><div class="reason__txt">${esc(r.x)}${r.sub?`<small>${esc(r.sub)}</small>`:''}</div></li>`).join('');
+  const rows=[['Energie',p.kcal,'kcal'],['Eiweiß',p.protein,'g'],['Zucker',p.sugar,'g'],['Kohlenhydrate',p.carbs,'g'],['Fett',p.fat,'g'],['ges. Fett',p.satfat,'g'],['Ballaststoffe',p.fiber,'g'],['Salz',p.salt,'g']];
+  const shown=rows.filter(r=>has(r[1]));
+  $('#nutriGrid').innerHTML=shown.map(([k,v,u])=>`<div class="nutri-item"><span>${k}</span><span>${round1(v)} ${u}</span></div>`).join('');
+  $('#nutriBox').style.display=shown.length?'block':'none';
+  if(ev.know.length){ $('#knowCard').style.display='block'; $('#knowList').innerHTML=ev.know.map(k=>`<li>${esc(k)}</li>`).join(''); } else $('#knowCard').style.display='none';
+  go('result');
+  if(hasScore&&s>=8) sparkle();
+}
+function sparkle(){ const wrap=$('.ring-wrap');
+  for(let i=0;i<8;i++){ const s=document.createElement('div'); s.className='sparkle'; s.textContent='✨';
+    s.style.left=50+(Math.random()*60-30)+'%'; s.style.top=50+(Math.random()*60-30)+'%';
+    s.style.setProperty('--dx',(Math.random()*40-20)+'px'); s.style.setProperty('--dy',(-20-Math.random()*30)+'px');
+    s.style.animationDelay=(i*60)+'ms'; wrap.appendChild(s); setTimeout(()=>s.remove(),1400); } }
+function setStatus(m,err){ const el=$('#status'); el.textContent=m; el.className='status'+(err?' err':''); }
+
+/* ---------- 5 · KAMERA --------------------------------------------------- */
+let stream=null,nativeDet=null,zxing=null,scanning=false;
+async function startCamera(){
+  $('#scanOff').style.display='none'; $('#reticle').style.display='block'; $('#laser').style.display='block';
+  const video=$('#video');
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+    video.srcObject=stream; await video.play(); scanning=true;
+    if('BarcodeDetector' in window){ nativeDet=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']}); nativeLoop(video); }
+    else if(window.ZXing){ zxing=new ZXing.BrowserMultiFormatReader(); zxing.decodeFromVideoElement(video,(result)=>{ if(result&&scanning)onScan(result.getText()); }); }
+    else setStatus('Scanner-Bibliothek nicht geladen – Barcode bitte eintippen.',true);
+  }catch(e){ resetCam(); setStatus('Kein Kamerazugriff (Rechte/HTTPS nötig). Tippe den Barcode ein.',true); }
+}
+async function nativeLoop(video){ if(!scanning)return;
+  try{ const codes=await nativeDet.detect(video); if(codes.length){ onScan(codes[0].rawValue); return; } }catch(e){}
+  requestAnimationFrame(()=>nativeLoop(video)); }
+function onScan(code){ if(!scanning)return; scanning=false; stopCam(); $('#barcode').value=code; lookup(code); }
+function stopCam(){ scanning=false; if(zxing){ try{zxing.reset();}catch(e){} zxing=null; } if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+function resetCam(){ stopCam(); $('#scanOff').style.display='flex'; $('#reticle').style.display='none'; $('#laser').style.display='none'; }
+
+/* ---------- 6 · VERLAUF + CACHE + EINSTELLUNGEN (localStorage) ----------- */
+const HKEY='ns_history',CKEY='ns_cache',GKEY='ns_goals',AKEY='ns_allergens',OKEY='ns_onboarded';
+function cacheGet(c){ try{return JSON.parse(localStorage.getItem(CKEY)||'{}')[c]||null;}catch(e){return null;} }
+function cacheSet(c,p){ try{const o=JSON.parse(localStorage.getItem(CKEY)||'{}');o[c]=p;localStorage.setItem(CKEY,JSON.stringify(o));}catch(e){} }
+function saveState(){ try{ localStorage.setItem(GKEY,JSON.stringify(state.goals)); localStorage.setItem(AKEY,JSON.stringify([...state.allergens])); }catch(e){} }
+function loadState(){ try{ state.goals=JSON.parse(localStorage.getItem(GKEY)||'[]'); state.allergens=new Set(JSON.parse(localStorage.getItem(AKEY)||'[]')); }catch(e){} }
+function addHistory(p,ev,code){ try{ const h=JSON.parse(localStorage.getItem(HKEY)||'[]');
+  h.unshift({name:p.name,score:ev.final,goals:[...state.goals],code,t:Date.now()});
+  localStorage.setItem(HKEY,JSON.stringify(h.slice(0,50))); }catch(e){} }
+function renderHistory(){
+  let h=[]; try{h=JSON.parse(localStorage.getItem(HKEY)||'[]');}catch(e){}
+  const el=$('#histList');
+  if(!h.length){ el.innerHTML='<div class="empty">Noch nichts gescannt.</div>'; return; }
+  el.innerHTML=h.map(it=>`<div class="hist-item" data-code="${esc(it.code)}">
+    <div class="hist-score" style="background:${it.score!=null?scoreColor(it.score):'#9AA9A2'}">${it.score!=null?it.score:'?'}</div>
+    <div class="hist-name">${esc(it.name)}<small>${esc(it.goals.map(g=>GOAL_LABEL[g]).join(', ')||'ohne Ziel')}</small></div></div>`).join('');
+  $$('#histList .hist-item').forEach(x=>x.addEventListener('click',()=>{ go('scan'); lookup(x.dataset.code); }));
+}
+
+/* ---------- DEMO-Produkte (offline) ------------------------------------- */
+const DEMO={
+  quark:{name:'Magerquark',brand:'Beispiel',sugar:4,protein:12,fat:0.3,satfat:0.2,salt:0.1,kcal:67,fiber:0,carbs:4,nova:1,additivesList:[],allergens:['en:milk'],traces:[],labels:'',category:'dairies',ing:'magermilch',ingCount:1},
+  cola:{name:'Cola',brand:'Beispiel',sugar:10.6,protein:0,fat:0,satfat:0,salt:0,kcal:42,fiber:0,carbs:10.6,nova:4,additivesList:['e150d','e338'],allergens:[],traces:[],labels:'',category:'beverages',ing:'wasser, zucker, farbstoff e150d, säuerungsmittel phosphorsäure, aroma, koffein',ingCount:6,caffeine:10},
+  colazero:{name:'Cola Zero',brand:'Beispiel',sugar:0,protein:0,fat:0,satfat:0,salt:0,kcal:0.3,fiber:0,carbs:0,nova:4,additivesList:['e150d','e950','e951'],allergens:[],traces:[],labels:'',category:'beverages',ing:'wasser, farbstoff e150d, süßstoff e950 e951, aroma, koffein',ingCount:5,caffeine:10},
+  riegel:{name:'Proteinriegel',brand:'Beispiel',sugar:6,protein:30,fat:12,satfat:6,salt:0.4,kcal:350,fiber:8,carbs:24,nova:4,additivesList:['e422'],allergens:['en:milk','en:soybeans'],traces:['en:nuts'],labels:'',category:'snacks',ing:'milchprotein, sojaprotein, feuchthaltemittel, süßstoff, aroma, palmöl',ingCount:6},
+  avocado:{name:'Avocado',brand:'Beispiel',sugar:0.7,protein:2,fat:15,satfat:2.1,salt:0,kcal:160,fiber:6.7,carbs:1.8,nova:1,additivesList:[],allergens:[],traces:[],labels:'organic',category:'fruits',ing:'avocado',ingCount:1},
+  gummi:{name:'Gummibärchen',brand:'Beispiel',sugar:46,protein:6,fat:0.2,satfat:0.1,salt:0.1,kcal:343,fiber:0,carbs:77,nova:4,additivesList:['e120','e102'],allergens:[],traces:[],labels:'',category:'sweets',ing:'glukosesirup, zucker, gelatine, farbstoff e120, e102, aroma',ingCount:6},
+  hafer:{name:'Haferflocken',brand:'Beispiel',sugar:1,protein:13,fat:7,satfat:1.3,salt:0,kcal:370,fiber:10,carbs:59,nova:1,additivesList:[],allergens:['en:gluten'],traces:[],labels:'',category:'cereals',ing:'vollkornhafer',ingCount:1},
+  bier:{name:'Pils',brand:'Beispiel',sugar:0,protein:0.5,fat:0,satfat:0,salt:0,kcal:42,fiber:0,carbs:3.3,nova:3,additivesList:[],allergens:['en:gluten'],traces:[],labels:'',category:'beverages alcoholic',ing:'wasser, gerstenmalz, hopfen',ingCount:3,alcohol:4.9},
+  oel:{name:'Natives Olivenöl',brand:'Beispiel',sugar:0,protein:0,fat:100,satfat:14,salt:0,kcal:899,fiber:0,carbs:0,nova:2,additivesList:[],allergens:[],traces:[],labels:'organic',category:'oils olive-oils',ing:'natives olivenöl extra',ingCount:1},
+};
+
+/* ---------- 7 · NAVIGATION / EVENTS ------------------------------------- */
+function go(screen){
+  $$('.screen').forEach(s=>s.classList.toggle('on',s.dataset.screen===screen));
+  const showNav=['scan','goals','history','result'].includes(screen);
+  $('#nav').style.display=showNav?'flex':'none'; $('#editGoals').style.display=showNav?'inline-flex':'none';
+  $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.nav===screen||(screen==='result'&&b.dataset.nav==='scan')));
+  if(screen==='history') renderHistory();
+  if(screen!=='scan') resetCam();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// Allergen-Chips
+$('#allergenChips').innerHTML=ALLERGENS.map(a=>`<button class="chip" data-al="${a.id}" aria-pressed="false"><span class="chip__emoji">${a.e}</span>${a.t}</button>`).join('');
+function refreshAllergenChips(){ $$('#allergenChips .chip').forEach(c=>c.setAttribute('aria-pressed',state.allergens.has(c.dataset.al))); }
+$$('#allergenChips .chip').forEach(c=>c.addEventListener('click',()=>{
+  const id=c.dataset.al, on=state.allergens.has(id); on?state.allergens.delete(id):state.allergens.add(id);
+  c.setAttribute('aria-pressed',!on); saveState();
+}));
+
+// Ziel-Gruppen
+$('#goalGroups').innerHTML=GROUPS.map(gr=>`<div class="group"><div class="group__head"><span class="group__title">${gr.name}</span><span class="group__tag">${gr.tag}</span></div>
+  <div class="chips">${gr.goals.map(g=>`<button class="chip" data-goal="${g.id}" aria-pressed="false"><span class="chip__emoji">${g.e}</span>${g.t}</button>`).join('')}</div></div>`).join('');
+function refreshGoalChips(){
+  $('#goalCount').textContent=`${state.goals.length} / 3`;
+  $$('#goalGroups .chip').forEach(c=>{ const on=state.goals.includes(c.dataset.goal); c.setAttribute('aria-pressed',on); c.disabled=!on&&state.goals.length>=3; });
+}
+$$('#goalGroups .chip').forEach(c=>c.addEventListener('click',()=>{
+  const id=c.dataset.goal,i=state.goals.indexOf(id);
+  if(i>=0)state.goals.splice(i,1); else if(state.goals.length<3)state.goals.push(id);
+  refreshGoalChips(); saveState();
+}));
+
+$('#startBtn').addEventListener('click',()=>go('allergens'));
+$('#skipToScan').addEventListener('click',()=>{ localStorage.setItem(OKEY,'1'); go('scan'); });
+$('#toGoals').addEventListener('click',()=>go('goals'));
+$('#toScan').addEventListener('click',()=>{ localStorage.setItem(OKEY,'1'); go('scan'); });
+$('#editGoals').addEventListener('click',()=>go('goals'));
+$('#editAllergens').addEventListener('click',()=>go('allergens'));
+$('#camStart').addEventListener('click',startCamera);
+$('#lookupBtn').addEventListener('click',()=>{ const c=$('#barcode').value.trim(); if(c)lookup(c); });
+$('#barcode').addEventListener('keydown',e=>{ if(e.key==='Enter'){ const c=$('#barcode').value.trim(); if(c)lookup(c); }});
+$('#againBtn').addEventListener('click',()=>go('scan'));
+$('#changeGoalBtn').addEventListener('click',()=>go('goals'));
+$('#clearHist').addEventListener('click',()=>{ if(confirm('Ganzen Verlauf löschen?')){ localStorage.removeItem(HKEY); renderHistory(); } });
+$$('.demo').forEach(b=>b.addEventListener('click',()=>{ const p=DEMO[b.dataset.demo]; const ev=evaluate(p); showResult(p,ev); addHistory(p,ev,'demo-'+b.dataset.demo); }));
+$$('#nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.nav)));
+
+// Start: gespeicherte Ziele/Allergene laden, Onboarding überspringen wenn schon erledigt
+loadState(); refreshAllergenChips(); refreshGoalChips();
+if(localStorage.getItem(OKEY)) go('scan');
+</script>
+</body>
+</html>

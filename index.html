@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>NutriScan — ehrlich sagen, was drin ist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/intro.css">
+<!-- ZXing: Barcode-Scanner, der auch auf iPad/Safari läuft (Android Chrome nutzt die native API). -->
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="logo">
+      <svg class="logo__mark" viewBox="0 0 44 44" aria-hidden="true">
+        <rect x="2" y="2" width="40" height="40" rx="13" fill="#22B573"/>
+        <rect x="11" y="13" width="3" height="18" rx="1.5" fill="#fff"/><rect x="17" y="13" width="2" height="18" rx="1" fill="#fff"/>
+        <rect x="22" y="13" width="3" height="18" rx="1.5" fill="#fff"/><rect x="28" y="13" width="2" height="18" rx="1" fill="#fff"/>
+        <rect x="33" y="13" width="2.5" height="18" rx="1.25" fill="#fff"/>
+      </svg><span class="logo__name">Nutri<span>Scan</span></span>
+    </div>
+    <div class="top__spacer"></div>
+    <button class="pill-btn" id="editGoals" style="display:none">🎯 Ziele</button>
+  </div>
+
+  <!-- HERO -->
+  <section class="screen on" data-screen="hero">
+    <div class="hero">
+      <div class="hero__stage">
+        <div class="blob"></div>
+        <div class="floaty f1" id="fApple"></div><div class="floaty f2" id="fAvo"></div>
+        <div class="floaty f3" id="fCarrot"></div><div class="floaty f4" id="fDrop"></div>
+        <div class="hero__buddy" id="heroBuddy"></div>
+      </div>
+      <p class="eyebrow">Dein ehrlicher Einkaufs-Buddy</p>
+      <h1 class="h-lead">Was steckt <em>wirklich</em><br>in deinem Produkt?</h1>
+      <p class="sub">Scanne den Strichcode – NutriScan bewertet ehrlich von 1&nbsp;bis&nbsp;10, passend zu deinem Ziel. Kein Marketing, nur Fakten.</p>
+      <button class="big-cta" id="startBtn">Los geht's <span aria-hidden="true">→</span></button>
+      <button class="ghost-cta" id="skipToScan">Direkt scannen, ohne Ziele</button>
+      <p class="disclaimer">Orientierung nach unseren Regeln – keine medizinische Beratung.<br>Daten: <a href="https://openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a></p>
+      <button class="ns-replay-btn" id="replayIntro" type="button">🚀 Intro nochmal ansehen</button>
+    </div>
+  </section>
+
+  <!-- ALLERGENE -->
+  <section class="screen" data-screen="allergens">
+    <div class="steps"><i class="steps__dot now"></i><i class="steps__dot"></i><i class="steps__dot"></i></div>
+    <div class="card">
+      <p class="eyebrow">Schritt 1 · Sicherheit zuerst</p>
+      <h2 class="h-lead">Was sollen wir für dich ausschließen?</h2>
+      <p class="sub">Tippe an, was du nicht verträgst. Produkte damit markieren wir rot – egal wie gut sie sonst wären.</p>
+      <div class="chips" id="allergenChips"></div>
+      <div class="notice">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16h.01" stroke="#B8860B" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="12" r="9.5" stroke="#B8860B" stroke-width="1.8"/></svg>
+        <span>Bei echten Allergien immer das Etikett prüfen. Wir sagen „laut Daten frei" – nie „garantiert frei".</span>
+      </div>
+    </div>
+    <button class="big-cta" id="toGoals">Weiter <span aria-hidden="true">→</span></button>
+  </section>
+
+  <!-- ZIELE -->
+  <section class="screen" data-screen="goals">
+    <div class="steps"><i class="steps__dot done"></i><i class="steps__dot now"></i><i class="steps__dot"></i></div>
+    <div class="counter">
+      <span class="counter__txt">Wähle bis zu <b>3&nbsp;Ziele</b></span>
+      <span class="pill-btn" id="goalCount" style="pointer-events:none">0 / 3</span>
+    </div>
+    <div class="card" id="goalGroups"></div>
+    <div class="link-row"><button class="text-link" id="editAllergens">🛡️ Allergene ändern</button></div>
+    <button class="big-cta" id="toScan" style="margin-top:10px">Zum Scanner <span aria-hidden="true">→</span></button>
+  </section>
+
+  <!-- SCAN -->
+  <section class="screen" data-screen="scan">
+    <div class="card">
+      <p class="eyebrow">Scannen</p>
+      <h2 class="h-lead">Strichcode vor die Kamera</h2>
+      <div class="scan-stage">
+        <video id="video" playsinline muted></video>
+        <div class="scan-off" id="scanOff">
+          <div style="font-size:2.4rem">📷</div><div style="font-weight:800">Kamera starten</div>
+          <button class="go" id="camStart" style="padding:12px 22px">Kamera an</button>
+          <div style="font-size:.8rem;opacity:.8;max-width:220px">Auf dem Laptop einfach unten den Barcode eintippen.</div>
+        </div>
+        <div class="reticle" id="reticle" style="display:none"><i></i></div>
+        <div class="laser" id="laser" style="display:none"></div>
+      </div>
+      <div class="manual">
+        <input class="field" id="barcode" inputmode="numeric" placeholder="Barcode eintippen…">
+        <button class="go" id="lookupBtn">Los</button>
+      </div>
+      <div class="demo-row">
+        <button class="demo" data-demo="quark">🥛 Magerquark</button><button class="demo" data-demo="cola">🥤 Cola</button>
+        <button class="demo" data-demo="colazero">🥤 Cola Zero</button><button class="demo" data-demo="riegel">🍫 Proteinriegel</button>
+        <button class="demo" data-demo="avocado">🥑 Avocado</button><button class="demo" data-demo="gummi">🐻 Gummibärchen</button>
+        <button class="demo" data-demo="hafer">🌾 Haferflocken</button><button class="demo" data-demo="bier">🍺 Bier</button>
+        <button class="demo" data-demo="oel">🫒 Olivenöl</button>
+      </div>
+      <p class="status" id="status"></p>
+    </div>
+  </section>
+
+  <!-- ERGEBNIS -->
+  <section class="screen" data-screen="result">
+    <div class="card">
+      <div class="result-hero">
+        <div class="ring-wrap">
+          <svg width="230" height="230" viewBox="0 0 230 230">
+            <circle class="ring-bg" cx="115" cy="115" r="100"></circle>
+            <circle class="ring-fg" id="ringFg" cx="115" cy="115" r="100"></circle>
+          </svg>
+          <div class="mascot" id="resultMascot"></div>
+          <div class="score-badge"><span id="scoreNum">–</span><small>/10</small></div>
+        </div>
+        <p class="verdict" id="verdict">—</p>
+        <p class="verdict-sub" id="verdictSub"></p>
+        <p class="prod-name" id="prodName">—</p>
+        <p class="prod-brand" id="prodBrand"></p>
+        <div class="goal-tags" id="goalTags"></div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="eyebrow">Warum diese Bewertung?</p>
+      <ul class="reasons" id="reasons"></ul>
+      <details class="collapse" id="nutriBox"><summary>Nährwerte pro 100 g anzeigen ▾</summary><div class="nutri-grid" id="nutriGrid"></div></details>
+    </div>
+    <div class="card know" id="knowCard" style="display:none">
+      <p class="eyebrow">💡 Gut zu wissen</p><ul id="knowList"></ul>
+    </div>
+    <div class="result-actions">
+      <button class="secondary" id="againBtn">Nächstes Produkt</button>
+      <button class="primary" id="changeGoalBtn">Ziele ändern</button>
+    </div>
+  </section>
+
+  <!-- VERLAUF -->
+  <section class="screen" data-screen="history">
+    <div class="card">
+      <div class="hist-head"><h2 class="h-lead" style="margin:0">Dein Verlauf</h2><button class="text-link" id="clearHist">Leeren</button></div>
+      <p class="sub" style="margin-top:4px">Bleibt nur auf diesem Gerät.</p>
+      <div id="histList"></div>
+    </div>
+  </section>
+</div>
+
+<nav class="nav" id="nav" style="display:none">
+  <button data-nav="scan" class="on"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="3" stroke="currentColor" stroke-width="2"/><path d="M7 9v6M10 9v6M13 9v6M17 9v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Scannen</button>
+  <button data-nav="goals"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>Ziele</button>
+  <button data-nav="history"><svg viewBox="0 0 24 24" fill="none"><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="2"/></svg>Verlauf</button>
+</nav>
+
+<script src="js/intro.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
