@@ -1,12 +1,18 @@
 // ==========================================================================
 // NUTRISCAN — Kamera-Scanner
 // Native BarcodeDetector (Android/Chrome), ZXing als Fallback (iPad/Safari).
+// Erkennt der Barcode-Scanner 3s lang nichts, springt der Scanner automatisch
+// auf eine OCR-Erkennung (Tesseract.js) der gedruckten Ziffernreihe um.
 // ==========================================================================
 import { $, setStatus } from './ui.js';
 
 let stream = null, nativeDet = null, zxing = null, scanning = false, videoTrack = null, torchOn = false;
+let barcodeActive = false, ocrActive = false, ocrWorker = null, ocrFallbackTimer = null, ocrTimer = null;
 
 const NATIVE_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf', 'qr_code'];
+const OCR_FALLBACK_DELAY = 3000;
+const OCR_SCAN_INTERVAL = 2000;
+const OCR_NUMBER_RE = /(?<!\d)\d{8,13}(?!\d)/;
 
 export async function startCamera(onScan) {
   $('#scanOff').style.display = 'none'; $('#reticle').style.display = 'block'; $('#laser').style.display = 'block';
@@ -19,7 +25,7 @@ export async function startCamera(onScan) {
         height: { ideal: 720 }
       }
     });
-    video.srcObject = stream; await video.play(); scanning = true;
+    video.srcObject = stream; await video.play(); scanning = true; barcodeActive = true;
     videoTrack = stream.getVideoTracks()[0];
 
     await enableContinuousFocus(videoTrack);
@@ -28,9 +34,11 @@ export async function startCamera(onScan) {
     if ('BarcodeDetector' in window) { nativeDet = await createNativeDetector(); nativeLoop(video, onScan); }
     else if (window.ZXing) {
       zxing = new ZXing.BrowserMultiFormatReader(zxingHints());
-      zxing.decodeFromVideoElement(video, (result) => { if (result && scanning) handleScan(result.getText(), onScan); });
+      zxing.decodeFromVideoElement(video, (result) => { if (result && scanning && barcodeActive) handleScan(result.getText(), onScan); });
     }
-    else setStatus('Scanner-Bibliothek nicht geladen – Barcode bitte eintippen.', true);
+    else { setStatus('Scanner-Bibliothek nicht geladen – Barcode bitte eintippen.', true); return; }
+
+    ocrFallbackTimer = setTimeout(() => switchToOcr(video, onScan), OCR_FALLBACK_DELAY);
   } catch (e) { resetCam(); setStatus('Kein Kamerazugriff (Rechte/HTTPS nötig). Tippe den Barcode ein.', true); }
 }
 
@@ -83,13 +91,62 @@ function setupTorchButton(track) {
 }
 
 async function nativeLoop(video, onScan) {
-  if (!scanning) return;
+  if (!scanning || !barcodeActive) return;
   try { const codes = await nativeDet.detect(video); if (codes.length) { handleScan(codes[0].rawValue, onScan); return; } } catch (e) { }
   requestAnimationFrame(() => nativeLoop(video, onScan));
 }
+
+/* ---------- OCR-Fallback (Tesseract.js): springt ein, wenn 3s kein Barcode erkannt wurde ---------- */
+function switchToOcr(video, onScan) {
+  ocrFallbackTimer = null;
+  if (!scanning || !barcodeActive) return;
+  barcodeActive = false;
+  if (zxing) { try { zxing.reset(); } catch (e) { } zxing = null; }
+  startOcr(video, onScan);
+}
+
+async function startOcr(video, onScan) {
+  setStatus('Zahlen lesen…');
+  ocrActive = true;
+  try {
+    if (!window.Tesseract) throw new Error('Tesseract nicht geladen');
+    ocrWorker = await Tesseract.createWorker('eng');
+    await ocrWorker.setParameters({ tessedit_char_whitelist: '0123456789' });
+  } catch (e) {
+    ocrActive = false;
+    setStatus('Kein Barcode erkannt – bitte Zahl eintippen.', true);
+    return;
+  }
+  ocrLoop(video, onScan);
+}
+
+function ocrLoop(video, onScan) {
+  if (!ocrActive || !scanning) return;
+  ocrTimer = setTimeout(async () => {
+    if (!ocrActive || !scanning) return;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const { data } = await ocrWorker.recognize(canvas);
+      const match = (data.text || '').match(OCR_NUMBER_RE);
+      if (match) { handleScan(match[0], onScan); return; }
+    } catch (e) { }
+    ocrLoop(video, onScan);
+  }, OCR_SCAN_INTERVAL);
+}
+
+function stopOcr() {
+  ocrActive = false;
+  if (ocrTimer) { clearTimeout(ocrTimer); ocrTimer = null; }
+  if (ocrWorker) { const w = ocrWorker; ocrWorker = null; try { w.terminate(); } catch (e) { } }
+}
+
 function handleScan(code, onScan) { if (!scanning) return; scanning = false; stopCam(); onScan(code); }
 export function stopCam() {
-  scanning = false; torchOn = false;
+  scanning = false; barcodeActive = false; torchOn = false;
+  if (ocrFallbackTimer) { clearTimeout(ocrFallbackTimer); ocrFallbackTimer = null; }
+  stopOcr();
   if (zxing) { try { zxing.reset(); } catch (e) { } zxing = null; }
   if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
   videoTrack = null;
