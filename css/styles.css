@@ -84,6 +84,9 @@ h1,h2,h3,.fred{font-family:'Fredoka',sans-serif;font-weight:600;letter-spacing:-
 .reticle i::before{bottom:0;left:0;border-right:none;border-top:none}.reticle i::after{bottom:0;right:0;border-left:none;border-top:none}
 .laser{position:absolute;left:12%;right:12%;height:3px;border-radius:3px;background:var(--brand);box-shadow:0 0 16px 3px var(--brand);top:14%;animation:laser 2.2s ease-in-out infinite}
 @keyframes laser{50%{top:82%}}
+.torch-btn{position:absolute;top:12px;right:12px;width:42px;height:42px;border-radius:50%;border:none;background:rgba(13,21,18,.55);color:#fff;font-size:1.15rem;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(2px);transition:background .15s,transform .08s}
+.torch-btn:active{transform:scale(.92)}
+.torch-btn.on{background:var(--brand)}
 .manual{display:flex;gap:8px;margin-top:14px}
 .field{flex:1;border:2px solid var(--line);border-radius:100px;padding:13px 18px;font-family:'Nunito';font-weight:700;font-size:1rem;color:var(--ink)}
 .field:focus{outline:none;border-color:var(--brand)}
