@@ -96,24 +96,32 @@ async function nativeLoop(video, onScan) {
   requestAnimationFrame(() => nativeLoop(video, onScan));
 }
 
-/* ---------- OCR-Fallback (Tesseract.js): springt ein, wenn 3s kein Barcode erkannt wurde ---------- */
+/* ---------- OCR-Fallback (Tesseract.js): springt ein, wenn 3s kein Barcode erkannt wurde ----------
+   Wichtig: der Videostream (stream/video.srcObject) wird hier NICHT angefasst. Nur die Barcode-Engine
+   wird stillgelegt (barcodeActive = false, ihre Callbacks werden dadurch zu No-Ops). zxing.reset()
+   stoppt intern auch die MediaStream-Tracks des Video-Elements — das darf beim Umschalten nicht
+   passieren, sonst wird der Kamera-View schwarz. zxing wird deshalb hier bewusst NICHT zurückgesetzt,
+   sondern erst in stopCam(), wenn die Kamera wirklich beendet wird. */
 function switchToOcr(video, onScan) {
   ocrFallbackTimer = null;
   if (!scanning || !barcodeActive) return;
   barcodeActive = false;
-  if (zxing) { try { zxing.reset(); } catch (e) { } zxing = null; }
   startOcr(video, onScan);
 }
 
 async function startOcr(video, onScan) {
+  console.log('[NutriScan OCR] Wechsel zu OCR-Fallback. video readyState:', video.readyState, 'size:', video.videoWidth, 'x', video.videoHeight);
   setStatus('Zahlen lesen…');
   ocrActive = true;
   try {
-    if (!window.Tesseract) throw new Error('Tesseract nicht geladen');
+    if (!window.Tesseract) throw new Error('Tesseract.js ist nicht geladen (CDN-Skript fehlt/blockiert)');
+    console.log('[NutriScan OCR] Starte Tesseract-Worker…');
     ocrWorker = await Tesseract.createWorker('eng');
     await ocrWorker.setParameters({ tessedit_char_whitelist: '0123456789' });
+    console.log('[NutriScan OCR] Tesseract-Worker bereit, prüfe alle', OCR_SCAN_INTERVAL, 'ms ein Frame.');
   } catch (e) {
     ocrActive = false;
+    console.error('[NutriScan OCR] Tesseract konnte nicht gestartet werden:', e);
     setStatus('Kein Barcode erkannt – bitte Zahl eintippen.', true);
     return;
   }
@@ -129,9 +137,11 @@ function ocrLoop(video, onScan) {
       canvas.width = video.videoWidth; canvas.height = video.videoHeight;
       canvas.getContext('2d').drawImage(video, 0, 0);
       const { data } = await ocrWorker.recognize(canvas);
-      const match = (data.text || '').match(OCR_NUMBER_RE);
+      const text = (data.text || '').trim();
+      const match = text.match(OCR_NUMBER_RE);
+      console.log('[NutriScan OCR] Frame geprüft. Erkannter Text:', JSON.stringify(text), match ? `→ Treffer: ${match[0]}` : '(kein Treffer)');
       if (match) { handleScan(match[0], onScan); return; }
-    } catch (e) { }
+    } catch (e) { console.error('[NutriScan OCR] Fehler beim Frame-Scan:', e); }
     ocrLoop(video, onScan);
   }, OCR_SCAN_INTERVAL);
 }
