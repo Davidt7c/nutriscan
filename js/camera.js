@@ -27,9 +27,9 @@ function ensureDebugOverlay() {
   debugEl = document.createElement('div');
   debugEl.id = 'nsOcrDebug';
   debugEl.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:34vh;overflow-y:auto;'
-    + 'background:rgba(10,16,13,.9);color:#7CFFB2;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;'
+    + 'background:rgba(0,0,0,.75);color:#fff;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;'
     + 'padding:8px 10px;z-index:99999;white-space:pre-wrap;pointer-events:none;'
-    + 'border-top:1px solid rgba(124,255,178,.35)';
+    + 'border-top:1px solid rgba(255,255,255,.25)';
   document.body.appendChild(debugEl);
   return debugEl;
 }
@@ -56,11 +56,20 @@ function ocrErrorLog(...args) {
   const el = ensureDebugOverlay();
   if (!el) return;
   const line = document.createElement('div');
-  line.style.color = '#FF8B8B';
+  line.style.color = '#FF6B6B';
   line.textContent = formatLogArgs(args);
   el.appendChild(line);
   el.scrollTop = el.scrollHeight;
   while (el.children.length > 50) el.removeChild(el.firstChild);
+}
+
+// Zeigt auch normale, unbehandelte JS-Fehler im Overlay an (z.B. Tippfehler/Exceptions
+// ausserhalb des OCR-Codes) -- nur im Debug-Modus, das Browser-Logging bleibt unangetastet.
+if (DEBUG) {
+  window.onerror = function (message, source, lineno, colno) {
+    ocrErrorLog('JS-Fehler:', message, `@ ${source || '?'}:${lineno || 0}:${colno || 0}`);
+    return false;
+  };
 }
 
 export async function startCamera(onScan) {
