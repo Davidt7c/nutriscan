@@ -17,6 +17,52 @@ const OCR_NUMBER_RE = /(?<!\d)\d{8,13}(?!\d)/;
 
 let ocrCandidate = null, ocrCandidateCount = 0;
 
+/* ---------- Debug-Overlay: zeigt "[NutriScan OCR]"-Logs zusätzlich auf dem Bildschirm an,
+   nur wenn die URL ?debug=1 gesetzt hat (nützlich, wenn man am Handy kein DevTools-Konsole hat). */
+const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
+let debugEl = null;
+
+function ensureDebugOverlay() {
+  if (debugEl || !DEBUG) return debugEl;
+  debugEl = document.createElement('div');
+  debugEl.id = 'nsOcrDebug';
+  debugEl.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:34vh;overflow-y:auto;'
+    + 'background:rgba(10,16,13,.9);color:#7CFFB2;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;'
+    + 'padding:8px 10px;z-index:99999;white-space:pre-wrap;pointer-events:none;'
+    + 'border-top:1px solid rgba(124,255,178,.35)';
+  document.body.appendChild(debugEl);
+  return debugEl;
+}
+
+function formatLogArgs(args) {
+  return args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+}
+
+function ocrLog(...args) {
+  console.log('[NutriScan OCR]', ...args);
+  if (!DEBUG) return;
+  const el = ensureDebugOverlay();
+  if (!el) return;
+  const line = document.createElement('div');
+  line.textContent = formatLogArgs(args);
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+  while (el.children.length > 50) el.removeChild(el.firstChild);
+}
+
+function ocrErrorLog(...args) {
+  console.error('[NutriScan OCR]', ...args);
+  if (!DEBUG) return;
+  const el = ensureDebugOverlay();
+  if (!el) return;
+  const line = document.createElement('div');
+  line.style.color = '#FF8B8B';
+  line.textContent = formatLogArgs(args);
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+  while (el.children.length > 50) el.removeChild(el.firstChild);
+}
+
 export async function startCamera(onScan) {
   $('#scanOff').style.display = 'none'; $('#reticle').style.display = 'block'; $('#laser').style.display = 'block';
   const video = $('#video');
@@ -113,19 +159,19 @@ function switchToOcr(video, onScan) {
 }
 
 async function startOcr(video, onScan) {
-  console.log('[NutriScan OCR] Wechsel zu OCR-Fallback. video readyState:', video.readyState, 'size:', video.videoWidth, 'x', video.videoHeight);
+  ocrLog('Wechsel zu OCR-Fallback. video readyState:', video.readyState, 'size:', video.videoWidth, 'x', video.videoHeight);
   setStatus('Zahlen lesen…');
   ocrActive = true;
   ocrCandidate = null; ocrCandidateCount = 0;
   try {
     if (!window.Tesseract) throw new Error('Tesseract.js ist nicht geladen (CDN-Skript fehlt/blockiert)');
-    console.log('[NutriScan OCR] Starte Tesseract-Worker…');
+    ocrLog('Starte Tesseract-Worker…');
     ocrWorker = await Tesseract.createWorker('eng');
     await ocrWorker.setParameters({ tessedit_char_whitelist: '0123456789' });
-    console.log('[NutriScan OCR] Tesseract-Worker bereit, prüfe alle', OCR_SCAN_INTERVAL, 'ms ein Frame.');
+    ocrLog('Tesseract-Worker bereit, prüfe alle', OCR_SCAN_INTERVAL, 'ms ein Frame.');
   } catch (e) {
     ocrActive = false;
-    console.error('[NutriScan OCR] Tesseract konnte nicht gestartet werden:', e);
+    ocrErrorLog('Tesseract konnte nicht gestartet werden:', e);
     setStatus('Kein Barcode erkannt – bitte Zahl eintippen.', true);
     return;
   }
@@ -173,21 +219,21 @@ function ocrLoop(video, onScan) {
       const match = text.match(OCR_NUMBER_RE);
 
       if (!match) {
-        console.log('[NutriScan OCR] Frame geprüft, kein Treffer. Text:', JSON.stringify(text));
+        ocrLog('Frame geprüft, kein Treffer. Text:', JSON.stringify(text));
       } else {
         const code = match[0];
         if (!isValidEan13(code)) {
-          console.log('[NutriScan OCR] Verworfen (ungültige EAN-13-Prüfziffer):', code);
+          ocrLog('Verworfen (ungültige EAN-13-Prüfziffer):', code);
         } else if (code === ocrCandidate) {
           ocrCandidateCount++;
-          console.log(`[NutriScan OCR] Bestätigung ${ocrCandidateCount}/${OCR_CONSENSUS_FRAMES} für`, code);
+          ocrLog(`Bestätigung ${ocrCandidateCount}/${OCR_CONSENSUS_FRAMES} für`, code);
           if (ocrCandidateCount >= OCR_CONSENSUS_FRAMES) { handleScan(code, onScan); return; }
         } else {
           ocrCandidate = code; ocrCandidateCount = 1;
-          console.log('[NutriScan OCR] Neuer Kandidat:', code);
+          ocrLog('Neuer Kandidat:', code);
         }
       }
-    } catch (e) { console.error('[NutriScan OCR] Fehler beim Frame-Scan:', e); }
+    } catch (e) { ocrErrorLog('Fehler beim Frame-Scan:', e); }
     ocrLoop(video, onScan);
   }, OCR_SCAN_INTERVAL);
 }
