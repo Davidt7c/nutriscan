@@ -78,11 +78,11 @@ h1,h2,h3,.fred{font-family:'Fredoka',sans-serif;font-weight:600;letter-spacing:-
 .scan-stage{position:relative;border-radius:22px;overflow:hidden;background:#0d1512;aspect-ratio:3/4;max-height:56vh;margin:0 auto;box-shadow:var(--shadow)}
 #video{width:100%;height:100%;object-fit:cover;display:block}
 .scan-off{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#cfe;background:linear-gradient(160deg,#14231d,#0d1512);text-align:center;padding:24px}
-.reticle{position:absolute;inset:14% 12%;pointer-events:none}
-.reticle::before,.reticle::after,.reticle i::before,.reticle i::after{content:"";position:absolute;width:34px;height:34px;border:4px solid #fff;border-radius:6px}
+.reticle{position:absolute;left:10%;right:10%;bottom:18%;height:16%;pointer-events:none}
+.reticle::before,.reticle::after,.reticle i::before,.reticle i::after{content:"";position:absolute;width:28px;height:28px;border:4px solid #fff;border-radius:6px}
 .reticle::before{top:0;left:0;border-right:none;border-bottom:none}.reticle::after{top:0;right:0;border-left:none;border-bottom:none}
 .reticle i::before{bottom:0;left:0;border-right:none;border-top:none}.reticle i::after{bottom:0;right:0;border-left:none;border-top:none}
-.laser{position:absolute;left:12%;right:12%;height:3px;border-radius:3px;background:var(--brand);box-shadow:0 0 16px 3px var(--brand);top:14%;animation:laser 2.2s ease-in-out infinite}
+.laser{position:absolute;left:10%;right:10%;height:3px;border-radius:3px;background:var(--brand);box-shadow:0 0 16px 3px var(--brand);top:66%;animation:laser 1.1s ease-in-out infinite}
 @keyframes laser{50%{top:82%}}
 .torch-btn{position:absolute;top:12px;right:12px;width:42px;height:42px;border-radius:50%;border:none;background:rgba(13,21,18,.55);color:#fff;font-size:1.15rem;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(2px);transition:background .15s,transform .08s}
 .torch-btn:active{transform:scale(.92)}

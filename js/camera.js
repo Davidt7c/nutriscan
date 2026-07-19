@@ -11,8 +11,11 @@ let barcodeActive = false, ocrActive = false, ocrWorker = null, ocrFallbackTimer
 
 const NATIVE_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf', 'qr_code'];
 const OCR_FALLBACK_DELAY = 3000;
-const OCR_SCAN_INTERVAL = 2000;
+const OCR_SCAN_INTERVAL = 800;
+const OCR_CONSENSUS_FRAMES = 2;
 const OCR_NUMBER_RE = /(?<!\d)\d{8,13}(?!\d)/;
+
+let ocrCandidate = null, ocrCandidateCount = 0;
 
 export async function startCamera(onScan) {
   $('#scanOff').style.display = 'none'; $('#reticle').style.display = 'block'; $('#laser').style.display = 'block';
@@ -113,6 +116,7 @@ async function startOcr(video, onScan) {
   console.log('[NutriScan OCR] Wechsel zu OCR-Fallback. video readyState:', video.readyState, 'size:', video.videoWidth, 'x', video.videoHeight);
   setStatus('Zahlen lesen…');
   ocrActive = true;
+  ocrCandidate = null; ocrCandidateCount = 0;
   try {
     if (!window.Tesseract) throw new Error('Tesseract.js ist nicht geladen (CDN-Skript fehlt/blockiert)');
     console.log('[NutriScan OCR] Starte Tesseract-Worker…');
@@ -128,19 +132,61 @@ async function startOcr(video, onScan) {
   ocrLoop(video, onScan);
 }
 
+// Bildausschnitt, der auf dem Bildschirm sichtbar ist (object-fit:cover schneidet das Kamerabild
+// auf die Box zu) — in Video-Rohpixel-Koordinaten umgerechnet.
+function getVisibleCropRect(video) {
+  const vw = video.videoWidth, vh = video.videoHeight, cw = video.clientWidth, ch = video.clientHeight;
+  if (!vw || !vh || !cw || !ch) return { sx: 0, sy: 0, sw: vw || 1, sh: vh || 1 };
+  const scale = Math.max(cw / vw, ch / vh);
+  const visW = cw / scale, visH = ch / scale;
+  return { sx: (vw - visW) / 2, sy: (vh - visH) / 2, sw: visW, sh: visH };
+}
+
+// Nur die untere Hälfte des sichtbaren Bildes (Zahlenzeile unter dem Barcode, siehe Reticle).
+function getOcrCropRect(video) {
+  const vis = getVisibleCropRect(video);
+  return { sx: vis.sx, sy: vis.sy + vis.sh * 0.5, sw: vis.sw, sh: vis.sh * 0.5 };
+}
+
+function isValidEan13(digits) {
+  if (digits.length !== 13) return true; // Prüfziffer-Regel gilt nur für EAN-13
+  const nums = digits.split('').map(Number);
+  const check = nums.pop();
+  const sum = nums.reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 1 : 3), 0);
+  return ((10 - (sum % 10)) % 10) === check;
+}
+
 function ocrLoop(video, onScan) {
   if (!ocrActive || !scanning) return;
   ocrTimer = setTimeout(async () => {
     if (!ocrActive || !scanning) return;
     try {
+      const crop = getOcrCropRect(video);
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
+      canvas.width = Math.max(1, Math.round(crop.sw)); canvas.height = Math.max(1, Math.round(crop.sh));
+      const ctx = canvas.getContext('2d');
+      ctx.filter = 'grayscale(1) contrast(1.8) brightness(1.1)';
+      ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, canvas.width, canvas.height);
+
       const { data } = await ocrWorker.recognize(canvas);
       const text = (data.text || '').trim();
       const match = text.match(OCR_NUMBER_RE);
-      console.log('[NutriScan OCR] Frame geprüft. Erkannter Text:', JSON.stringify(text), match ? `→ Treffer: ${match[0]}` : '(kein Treffer)');
-      if (match) { handleScan(match[0], onScan); return; }
+
+      if (!match) {
+        console.log('[NutriScan OCR] Frame geprüft, kein Treffer. Text:', JSON.stringify(text));
+      } else {
+        const code = match[0];
+        if (!isValidEan13(code)) {
+          console.log('[NutriScan OCR] Verworfen (ungültige EAN-13-Prüfziffer):', code);
+        } else if (code === ocrCandidate) {
+          ocrCandidateCount++;
+          console.log(`[NutriScan OCR] Bestätigung ${ocrCandidateCount}/${OCR_CONSENSUS_FRAMES} für`, code);
+          if (ocrCandidateCount >= OCR_CONSENSUS_FRAMES) { handleScan(code, onScan); return; }
+        } else {
+          ocrCandidate = code; ocrCandidateCount = 1;
+          console.log('[NutriScan OCR] Neuer Kandidat:', code);
+        }
+      }
     } catch (e) { console.error('[NutriScan OCR] Fehler beim Frame-Scan:', e); }
     ocrLoop(video, onScan);
   }, OCR_SCAN_INTERVAL);
@@ -148,6 +194,7 @@ function ocrLoop(video, onScan) {
 
 function stopOcr() {
   ocrActive = false;
+  ocrCandidate = null; ocrCandidateCount = 0;
   if (ocrTimer) { clearTimeout(ocrTimer); ocrTimer = null; }
   if (ocrWorker) { const w = ocrWorker; ocrWorker = null; try { w.terminate(); } catch (e) { } }
 }
